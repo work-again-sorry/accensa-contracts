@@ -480,6 +480,7 @@ pub struct CommitRevealedEvent {
 }
 
 pub mod dust;
+pub mod flash_loan;
 pub mod nft_escrow;
 pub mod oracle;
 pub mod settlement;
@@ -2527,6 +2528,26 @@ impl RefundVault {
         dust::sweep_dust(&env, payment_ref)
     }
 
+    /// Flash-borrow `amount` of the vault's liquid float (issue #442). The
+    /// tokens are sent to `receiver`, whose `on_flash_loan` callback must
+    /// return `amount` plus a 0.09% premium to the vault before this call
+    /// ends; the premium is forwarded to the fee recipient. Merchant (admin)
+    /// only. Returns the premium charged.
+    ///
+    /// # Errors
+    /// - `InvalidAmount`: `amount <= 0`.
+    /// - `SelfTransfer`: `receiver` is the vault itself.
+    /// - `InsufficientFloat`: `amount` exceeds the liquid float, or the
+    ///   receiver did not repay `amount + fee` (the loan is reverted).
+    pub fn flash_loan(
+        env: Env,
+        receiver: Address,
+        amount: i128,
+        data: Bytes,
+    ) -> Result<i128, Error> {
+        flash_loan::flash_loan(&env, receiver, amount, data)
+    }
+
     pub fn extend_refund_ttl(env: Env, payment_ref: BytesN<32>) -> Result<(), Error> {
         let record: RefundRecord = env
             .storage()
@@ -2621,6 +2642,8 @@ impl RefundVault {
 
 #[cfg(test)]
 mod dust_tests;
+#[cfg(test)]
+mod flash_loan_tests;
 #[cfg(test)]
 mod fuzz_test;
 #[cfg(test)]
